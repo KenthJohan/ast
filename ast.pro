@@ -8,6 +8,7 @@ HEADERS += $$PWD/csc/csc_debug.h
 HEADERS += $$PWD/csc/csc_str.h
 HEADERS += $$PWD/csc/csc_tok_c.h
 HEADERS += $$PWD/csc/csc_tree4.h
+HEADERS += $$PWD/csc/csc_tree4_print.h
 VPATH +=
 SOURCES += main_test.c
 
