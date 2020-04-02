@@ -77,7 +77,7 @@ enum ast_nodetype
 };
 
 
-struct token
+struct pm_tokinfo
 {
 	int lin;
 	int col;
@@ -85,11 +85,10 @@ struct token
 	int padding;
 	char const * a;
 	char const * b;
-	char const * c;
 };
 
 
-void tok_next (struct token * tok)
+void tok_next (struct pm_tokinfo * tok)
 {
 again:
 	tok->a = tok->b;
@@ -203,11 +202,11 @@ struct ast_node
 	enum ast_nodetype kind;
 	int padding;
 	struct csc_tree4 tree;
-	struct token tok;
+	struct pm_tokinfo tok;
 };
 
 
-void ast_add (struct ast_node * root, struct ast_node ** nextroot, struct token tok)
+void ast_add (struct ast_node * root, struct ast_node ** nextroot, struct pm_tokinfo tok)
 {
 	struct ast_node * node = NULL;
 again:
@@ -508,7 +507,7 @@ int main (int argc, char * argv [])
 
 	char * code = csc_malloc_file ("../ast/c.c");
 
-	struct token tok;
+	struct pm_tokinfo tok;
 	tok.b = code;
 	tok_next (&tok);
 	while (tok.tok)
