@@ -164,7 +164,7 @@ void print_code (char const * code, char const * a, char const * b)
 }
 
 
-enum pm_act get_act (enum pm_tok tok)
+enum pm_act pm_act_fromtok (enum pm_tok tok)
 {
 	switch (tok)
 	{
@@ -178,7 +178,7 @@ enum pm_act get_act (enum pm_tok tok)
 }
 
 
-void parse (struct pm_tokinfo * tokinfo, struct pm_node * node, struct pm_node ** nextnode)
+void pm_parse (struct pm_tokinfo * tokinfo, struct pm_node * node, struct pm_node ** nextnode)
 {
 	ASSERT_PARAM_NOTNULL (tokinfo);
 	ASSERT_PARAM_NOTNULL (node);
@@ -186,7 +186,7 @@ void parse (struct pm_tokinfo * tokinfo, struct pm_node * node, struct pm_node *
 	ASSERT_PARAM_NOTNULL (*nextnode);
 	struct pm_node * newnode = NULL;
 tryagain:
-	switch (get_act (tokinfo->tok))
+	switch (pm_act_fromtok (tokinfo->tok))
 	{
 	case PM_ACT_PARENT_PRECEDENCE:
 		if (node->tree.parent)
@@ -221,16 +221,18 @@ tryagain:
 }
 
 
-void print_traverse_cb (struct csc_tree4 const * treenode, void *ptr)
+void pm_print_traverse_cb (struct csc_tree4 const * nodepos, void *ptr)
 {
-	ASSERT_PARAM_NOTNULL (treenode);
+	ASSERT_PARAM_NOTNULL (nodepos);
 	ASSERT_PARAM_NOTNULL (ptr);
-	struct pm_node const * node = container_of_const (treenode, struct pm_node const, tree);
+	struct pm_node const * node = container_of_const (nodepos, struct pm_node const, tree);
 	char const * color = NULL;
 	char const * a = node->tokinfo.a;
 	char const * b = node->tokinfo.b;
 	int ab_length = (int)(b - a);
 	enum pm_tok tok = node->tokinfo.tok;
+	//The userpointer ptr is the position of the parser:
+	//Highlight the position of parser in the tree with a different color:
 	if (node == ptr)
 	{
 		color = TCOL (TCOL_UNDERSCORE, TCOL_DEFAULT, TCOL_RED);
@@ -266,8 +268,8 @@ int main (int argc, char * argv [])
 		pm_tokinfo_next (&tokinfo);
 		ASSERT (tokinfo.b >= tokinfo.a);
 		print_code (code, tokinfo.a, tokinfo.b);
-		parse (&tokinfo, nodepos, &nodepos);
-		csc_tree4_print_traverse (&(root->tree), &(nodepos->tree), print_traverse_cb);
+		pm_parse (&tokinfo, nodepos, &nodepos);
+		csc_tree4_print_traverse (&(root->tree), &(nodepos->tree), pm_print_traverse_cb);
 		getc (stdin);
 	}
 

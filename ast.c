@@ -463,7 +463,7 @@ void ast_print (struct csc_tree4 const * node, int depth, int leaf, uint32_t ind
 }
 
 
-char const * print_traverse_cb (struct csc_tree4 const * node, void *ptr)
+void print_traverse_cb (struct csc_tree4 const * node, void *ptr)
 {
 	static char buf [100] = {0};
 	struct ast_node const * n = container_of_const (node, struct ast_node const, tree);
@@ -476,7 +476,7 @@ char const * print_traverse_cb (struct csc_tree4 const * node, void *ptr)
 	{
 		snprintf (buf, sizeof (buf), TCOL(TCOL_BOLD,TCOL_DEFAULT,TCOL_DEFAULT) "%s" TCOL_RST " [%.*s] (%ic)", ast_nodetype_tostr (n->kind), (int)(n->tok.b-n->tok.a), n->tok.a, n->tree.child_count);
 	}
-	return buf;
+	printf ("%s\n", buf);
 }
 
 
