@@ -22,7 +22,7 @@
 #include <csc_tree4.h>
 
 
-int tok_next (char const ** p, int * line, int * col, char const ** a)
+int pm_tokinfo_next (char const ** p, int * line, int * col, char const ** a)
 {
 again:
 	(*a) = (*p);
@@ -101,7 +101,7 @@ enum ast_nodetype
 };
 
 
-int ast_precedence (int t)
+int pm_tok_precedence (int t)
 {
 	switch (t)
 	{
@@ -143,7 +143,7 @@ void ast_add (struct ast_node * node, char const * code)
 	int tok;
 	struct ast_node * newnode = NULL;
 
-	tok = tok_next (&p, &line, &col, &a);
+	tok = pm_tokinfo_next (&p, &line, &col, &a);
 	if (tok == 0) {return;}
 
 	while (1)
@@ -171,7 +171,7 @@ void ast_add (struct ast_node * node, char const * code)
 				csc_tree4_addsibling (&(node->tree), &(newnode->tree));
 			}
 			node = newnode;
-			tok = tok_next (&p, &line, &col, &a);
+			tok = pm_tokinfo_next (&p, &line, &col, &a);
 			if (tok == 0) {return;}
 			break;
 
@@ -186,8 +186,8 @@ void ast_add (struct ast_node * node, char const * code)
 			if (node->tree.parent)
 			{
 				struct ast_node * parent = container_of (node->tree.parent, struct ast_node, tree);
-				int p0 = ast_precedence (parent->token);
-				int p1 = ast_precedence (tok);
+				int p0 = pm_tok_precedence (parent->token);
+				int p1 = pm_tok_precedence (tok);
 				if (p0 > p1)
 				{
 					//bitree2_add_parent (node->tree.parent, &(newnode->tree));
@@ -201,7 +201,7 @@ void ast_add (struct ast_node * node, char const * code)
 			newnode->p = p;
 			//There should be a operand in the current node which will be the child of this operator.
 			csc_tree4_addparent (&(node->tree), &(newnode->tree));
-			tok = tok_next (&p, &line, &col, &a);
+			tok = pm_tokinfo_next (&p, &line, &col, &a);
 			if (tok == 0) {return;}
 			break;
 
@@ -331,7 +331,7 @@ int main (int argc, char * argv [])
 	setlocale (LC_CTYPE, "");
 	IupOpen (&argc, &argv);
 	char const code [] =
-	"a ^ b * c";
+	"a ^ b * c ^ d + e * f";
 
 	struct ast_node * ast = ast_create (code);
 	ast->kind = AST_ROOT;

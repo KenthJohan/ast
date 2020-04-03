@@ -88,7 +88,7 @@ struct pm_tokinfo
 };
 
 
-void tok_next (struct pm_tokinfo * tok)
+void pm_tokinfo_next (struct pm_tokinfo * tok)
 {
 again:
 	tok->a = tok->b;
@@ -509,7 +509,7 @@ int main (int argc, char * argv [])
 
 	struct pm_tokinfo tok;
 	tok.b = code;
-	tok_next (&tok);
+	pm_tokinfo_next (&tok);
 	while (tok.tok)
 	{
 		ASSERT (tok.b >= tok.a);
@@ -518,7 +518,7 @@ int main (int argc, char * argv [])
 		print_code (code, tok.a, tok.b);
 		ast_add (p, &p, tok);
 		csc_tree4_print_traverse (&root->tree, &p->tree, print_traverse_cb);
-		tok_next (&tok);
+		pm_tokinfo_next (&tok);
 		getc (stdin);
 	}
 

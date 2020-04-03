@@ -23,45 +23,94 @@
 
 enum pm_tok
 {
+	PM_TOK_TERMINATOR = '\0',
 	PM_TOK_MUL = '*',
 	PM_TOK_POW = '^',
 	PM_TOK_PLUS = '+',
-	PM_TOK_ID = 256,
-	PM_TOK_LIT = 257,
+	PM_TOK_COMMA = ',',
+	PM_TOK_START = 256,
+	PM_TOK_ID,
+	PM_TOK_LITERAL,
 };
+
+
+enum pm_act
+{
+	PM_ACT_SIBLING,
+	PM_ACT_PARENT_PRECEDENCE,
+	PM_ACT_CHILD
+};
+
 
 struct pm_tokinfo
 {
 	int lin;
 	int col;
-	int tok;
+	enum pm_tok tok;
 	int padding;
 	char const * a;
 	char const * b;
 };
 
 
-void tok_next (struct pm_tokinfo * tok)
+struct pm_node
 {
+	struct csc_tree4 tree;
+	struct pm_tokinfo tokinfo;
+};
+
+
+char const * pm_tok_tostr (enum pm_tok tok)
+{
+	switch (tok)
+	{
+	case PM_TOK_START:return "START";
+	case PM_TOK_MUL:return "MUL";
+	case PM_TOK_POW:return "POW";
+	case PM_TOK_PLUS:return "PLUS";
+	case PM_TOK_ID:return "ID";
+	case PM_TOK_LITERAL:return "LITERAL";
+	default:return "TOK?";
+	}
+}
+
+
+int pm_tok_precedence (enum pm_tok tok)
+{
+	switch (tok)
+	{
+	case '*': return 3;
+	case '+': return 2;
+	case '^': return 9;
+	case ',': return 15;
+	default:ASSERT(0);
+	}
+}
+
+
+void pm_tokinfo_next (struct pm_tokinfo * tokinfo)
+{
+	ASSERT_PARAM_NOTNULL (tokinfo);
 again:
-	tok->a = tok->b;
-	switch (*tok->b)
+	ASSERT (tokinfo->b >= tokinfo->a);
+	tokinfo->a = tokinfo->b;
+	switch (*tokinfo->b)
 	{
 	case '\0':
-		tok->tok = 0;
+		tokinfo->tok = 0;
 		return;
 	case '\t':
 	case ' ':
-		tok->col ++;
-		tok->b ++;
+		tokinfo->col ++;
+		tokinfo->b ++;
 		goto again;
 	case '\r':
-		tok->b ++;
+		tokinfo->b ++;
 		goto again;
 	case '\n':
-		tok->col = 0;
-		tok->lin ++;
-		tok->b ++;
+		tokinfo->col = 0;
+		tokinfo->lin ++;
+		tokinfo->b ++;
 		goto again;
 	case '{':
 	case '}':
@@ -78,27 +127,33 @@ again:
 	case '>':
 	case '^':
 	case ';':
-		tok->tok = *tok->b;
-		tok->b ++;
-		tok->col ++;
+		tokinfo->tok = (enum pm_tok) (*tokinfo->b);
+		tokinfo->b ++;
+		tokinfo->col ++;
 		return;
 	}
 	if (0) {}
-	else if (csc_next_literal (&tok->b, &tok->col))
+	else if (csc_next_literal (&tokinfo->b, &tokinfo->col))
 	{
-		tok->tok = PM_TOK_LIT;
+		tokinfo->tok = PM_TOK_LITERAL;
 	}
-	else if (csc_next_indentifer (&tok->b, &tok->col))
+	else if (csc_next_indentifer (&tokinfo->b, &tokinfo->col))
 	{
-		tok->tok = PM_TOK_ID;
+		tokinfo->tok = PM_TOK_ID;
 	}
 	return;
 }
 
+
+/**
+ * @brief Print the code and highlight code section a to b.
+ * @param code
+ * @param a
+ * @param b
+ */
 void print_code (char const * code, char const * a, char const * b)
 {
 	ASSERT (a >= code);
-	ASSERT (b >= a);
 	ASSERT (b >= a);
 	fwrite (code, 1, (unsigned long long)(a-code), stdout);
 	fputs (TCOL(TCOL_UNDERSCORE,TCOL_DEFAULT,TCOL_RED), stdout);
@@ -109,48 +164,84 @@ void print_code (char const * code, char const * a, char const * b)
 }
 
 
-enum pm_act
+enum pm_act get_act (enum pm_tok tok)
 {
-	PM_ACT_ADD_SIBLING,
-	PM_ACT_ADD_PARENT,
-	PM_ACT_ADD_CHILD
-};
-
-struct pm_rule
-{
-	enum pm_act act;
-};
-
-struct pm_node
-{
-	struct csc_tree4 tree;
-	struct pm_tokinfo tokinfo;
-};
-
-
-void parse (struct pm_rule * rule, struct pm_tokinfo * tokinfo, struct pm_node * node)
-{
-	struct pm_node * newnode;
-	switch (rule [tokinfo->tok].act)
+	switch (tok)
 	{
-	case PM_ACT_ADD_PARENT:
+	case PM_TOK_MUL: return PM_ACT_PARENT_PRECEDENCE;
+	case PM_TOK_POW: return PM_ACT_PARENT_PRECEDENCE;
+	case PM_TOK_PLUS: return PM_ACT_PARENT_PRECEDENCE;
+	case PM_TOK_ID: return PM_ACT_SIBLING;
+	case PM_TOK_LITERAL: return PM_ACT_SIBLING;
+	default:ASSERT (0);
+	}
+}
+
+
+void parse (struct pm_tokinfo * tokinfo, struct pm_node * node, struct pm_node ** nextnode)
+{
+	ASSERT_PARAM_NOTNULL (tokinfo);
+	ASSERT_PARAM_NOTNULL (node);
+	ASSERT_PARAM_NOTNULL (nextnode);
+	ASSERT_PARAM_NOTNULL (*nextnode);
+	struct pm_node * newnode = NULL;
+tryagain:
+	switch (get_act (tokinfo->tok))
+	{
+	case PM_ACT_PARENT_PRECEDENCE:
+		if (node->tree.parent)
+		{
+			struct pm_node * parent = container_of (node->tree.parent, struct pm_node, tree);
+			int p0 = pm_tok_precedence (tokinfo->tok);
+			int p1 = pm_tok_precedence (parent->tokinfo.tok);
+			if (p0 < p1)
+			{
+				node = parent;
+				goto tryagain;
+			}
+		}
+		(*nextnode) = node;
 		newnode = calloc (1, sizeof (struct pm_node));
-		node->tokinfo = (*tokinfo);
+		newnode->tokinfo = (*tokinfo);
 		csc_tree4_addparent (&(node->tree), &(newnode->tree));
 		break;
-	case PM_ACT_ADD_CHILD:
+	case PM_ACT_CHILD:
 		newnode = calloc (1, sizeof (struct pm_node));
-		node->tokinfo = (*tokinfo);
+		newnode->tokinfo = (*tokinfo);
 		csc_tree4_addchild (&(node->tree), &(newnode->tree));
+		(*nextnode) = newnode;
 		break;
-	case PM_ACT_ADD_SIBLING:
+	case PM_ACT_SIBLING:
 		newnode = calloc (1, sizeof (struct pm_node));
-		node->tokinfo = (*tokinfo);
+		newnode->tokinfo = (*tokinfo);
 		csc_tree4_addsibling (&(node->tree), &(newnode->tree));
+		(*nextnode) = newnode;
 		break;
 	}
 }
 
+
+void print_traverse_cb (struct csc_tree4 const * treenode, void *ptr)
+{
+	ASSERT_PARAM_NOTNULL (treenode);
+	ASSERT_PARAM_NOTNULL (ptr);
+	struct pm_node const * node = container_of_const (treenode, struct pm_node const, tree);
+	char const * color = NULL;
+	char const * a = node->tokinfo.a;
+	char const * b = node->tokinfo.b;
+	int ab_length = (int)(b - a);
+	enum pm_tok tok = node->tokinfo.tok;
+	if (node == ptr)
+	{
+		color = TCOL (TCOL_UNDERSCORE, TCOL_DEFAULT, TCOL_RED);
+	}
+	else
+	{
+		color = TCOL (TCOL_BOLD, TCOL_DEFAULT, TCOL_DEFAULT);
+	}
+	printf ("%s" "%s" TCOL_RST, color, pm_tok_tostr (tok));
+	printf (" %.*s\n", ab_length, a);
+}
 
 
 int main (int argc, char * argv [])
@@ -160,22 +251,23 @@ int main (int argc, char * argv [])
 	setbuf (stdout, NULL);
 	setlocale (LC_CTYPE, "");
 
-	struct pm_rule rule[] =
-	{
-	[PM_TOK_ID] = {.act = PM_ACT_ADD_SIBLING},
-	[PM_TOK_LIT] = {.act = PM_ACT_ADD_SIBLING},
-	[PM_TOK_PLUS] = {.act = PM_ACT_ADD_PARENT},
-	};
+	//Having a starting node will avoid edge cases, i.e. a empty tree will have one node:
+	struct pm_node * root = calloc (1, sizeof (struct pm_node));
+	struct pm_node * nodepos = root;
+	nodepos->tokinfo.tok = PM_TOK_START;
 
-	char * code = "123 ^ abc123 * abc";
-	struct pm_tokinfo tok;
-	tok.b = code;
+	//Start the tokinfo at beginning of the code:
+	char * code = "a ^ b * c ^ d + e * f";
+	struct pm_tokinfo tokinfo = {0};
+	tokinfo.b = code;
 
 	while (1)
 	{
-		tok_next (&tok);
-		ASSERT (tok.b >= tok.a);
-		print_code (code, tok.a, tok.b);
+		pm_tokinfo_next (&tokinfo);
+		ASSERT (tokinfo.b >= tokinfo.a);
+		print_code (code, tokinfo.a, tokinfo.b);
+		parse (&tokinfo, nodepos, &nodepos);
+		csc_tree4_print_traverse (&(root->tree), &(nodepos->tree), print_traverse_cb);
 		getc (stdin);
 	}
 
