@@ -21,6 +21,11 @@
 #include <csc_malloc_file.h>
 
 
+#define PM_NEXT_REPLACES (1 << 0)
+#define PM_MOVEUP (1 << 1)
+#define PM_PRECEDENCE (1 << 2)
+
+
 enum pm_tok
 {
 	PM_TOK_TERMINATOR = '\0',
@@ -28,6 +33,12 @@ enum pm_tok
 	PM_TOK_POW = '^',
 	PM_TOK_PLUS = '+',
 	PM_TOK_COMMA = ',',
+	PM_TOK_PARR = '(',
+	PM_TOK_PARL = ')',
+	PM_TOK_BRAR = '{',
+	PM_TOK_BRAL = '}',
+	PM_TOK_SQRR = '[',
+	PM_TOK_SQRL = ']',
 	PM_TOK_START = 256,
 	PM_TOK_ID,
 	PM_TOK_LITERAL,
@@ -75,6 +86,21 @@ char const * pm_tok_tostr (enum pm_tok tok)
 }
 
 
+int pm_tok_section_index (enum pm_tok tok)
+{
+	switch (tok)
+	{
+	case '(': return 0;
+	case ')': return 0;
+	case '{': return 1;
+	case '}': return 1;
+	case '[': return 2;
+	case ']': return 2;
+	default:ASSERT(0);
+	}
+}
+
+
 int pm_tok_precedence (enum pm_tok tok)
 {
 	switch (tok)
@@ -83,7 +109,10 @@ int pm_tok_precedence (enum pm_tok tok)
 	case '+': return 2;
 	case '^': return 9;
 	case ',': return 15;
-	default:ASSERT(0);
+	case '(': return 29;
+	case ')': return 29;
+	default:return 0;
+		ASSERT(0);
 	}
 }
 
@@ -171,6 +200,8 @@ enum pm_act pm_act_fromtok (enum pm_tok tok)
 	case PM_TOK_MUL: return PM_ACT_PARENT_PRECEDENCE;
 	case PM_TOK_POW: return PM_ACT_PARENT_PRECEDENCE;
 	case PM_TOK_PLUS: return PM_ACT_PARENT_PRECEDENCE;
+	case PM_TOK_PARR: return PM_ACT_CHILD;
+	case PM_TOK_PARL: return PM_ACT_SIBLING;
 	case PM_TOK_ID: return PM_ACT_SIBLING;
 	case PM_TOK_LITERAL: return PM_ACT_SIBLING;
 	default:ASSERT (0);
@@ -259,7 +290,7 @@ int main (int argc, char * argv [])
 	nodepos->tokinfo.tok = PM_TOK_START;
 
 	//Start the tokinfo at beginning of the code:
-	char * code = "a ^ b * c ^ d + e * f";
+	char * code = "a ^ b(x+3^2+y)";
 	struct pm_tokinfo tokinfo = {0};
 	tokinfo.b = code;
 
