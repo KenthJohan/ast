@@ -41,6 +41,7 @@ enum pm_tok
 	PM_TOK_SQRL = ']',
 	PM_TOK_START = 256,
 	PM_TOK_ID,
+	PM_TOK_IDFX,
 	PM_TOK_LITERAL,
 };
 
@@ -49,7 +50,8 @@ enum pm_act
 {
 	PM_ACT_SIBLING,
 	PM_ACT_PARENT_PRECEDENCE,
-	PM_ACT_CHILD
+	PM_ACT_CHILD,
+	PM_ACT_FX
 };
 
 
@@ -68,6 +70,7 @@ struct pm_node
 {
 	struct csc_tree4 tree;
 	struct pm_tokinfo tokinfo;
+	enum pm_tok endtok;
 };
 
 
@@ -80,6 +83,7 @@ char const * pm_tok_tostr (enum pm_tok tok)
 	case PM_TOK_POW:return "POW";
 	case PM_TOK_PLUS:return "PLUS";
 	case PM_TOK_ID:return "ID";
+	case PM_TOK_IDFX:return "IDFX";
 	case PM_TOK_LITERAL:return "LITERAL";
 	default:return "TOK?";
 	}
@@ -200,7 +204,7 @@ enum pm_act pm_act_fromtok (enum pm_tok tok)
 	case PM_TOK_MUL: return PM_ACT_PARENT_PRECEDENCE;
 	case PM_TOK_POW: return PM_ACT_PARENT_PRECEDENCE;
 	case PM_TOK_PLUS: return PM_ACT_PARENT_PRECEDENCE;
-	case PM_TOK_PARR: return PM_ACT_CHILD;
+	case PM_TOK_PARR: return PM_ACT_FX;
 	case PM_TOK_PARL: return PM_ACT_SIBLING;
 	case PM_TOK_ID: return PM_ACT_SIBLING;
 	case PM_TOK_LITERAL: return PM_ACT_SIBLING;
@@ -216,6 +220,9 @@ void pm_parse (struct pm_tokinfo * tokinfo, struct pm_node * node, struct pm_nod
 	ASSERT_PARAM_NOTNULL (nextnode);
 	ASSERT_PARAM_NOTNULL (*nextnode);
 	struct pm_node * newnode = NULL;
+
+
+
 tryagain:
 	switch (pm_act_fromtok (tokinfo->tok))
 	{
@@ -246,6 +253,14 @@ tryagain:
 		newnode = calloc (1, sizeof (struct pm_node));
 		newnode->tokinfo = (*tokinfo);
 		csc_tree4_addsibling (&(node->tree), &(newnode->tree));
+		(*nextnode) = newnode;
+		break;
+	case PM_ACT_FX:
+		ASSERT (node->tokinfo.tok == PM_TOK_ID);
+		node->tokinfo.tok = PM_TOK_IDFX;
+		newnode = calloc (1, sizeof (struct pm_node));
+		newnode->tokinfo = (*tokinfo);
+		csc_tree4_addchild (&(node->tree), &(newnode->tree));
 		(*nextnode) = newnode;
 		break;
 	}
